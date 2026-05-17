@@ -84,13 +84,13 @@ def build_historical_record(hour_data, location):
         'pm25_exceeds_who': 1 if components.get('pm2_5', 0) > 15 else 0,
         'aqi': hour_data.get('main', {}).get('aqi'),
         'co': components.get('co'),
-        'no': components.get('no'),
+        'no': int(components.get('no')) if components.get('no') is not None else None,
         'no2': components.get('no2'),
         'o3': components.get('o3'),
         'so2': components.get('so2'),
         'pm2_5': components.get('pm2_5'),
         'pm10': components.get('pm10'),
-        'nh3': components.get('nh3')
+        'nh3': int(components.get('nh3')) if components.get('nh3') is not None else None
     }
     return record
 
