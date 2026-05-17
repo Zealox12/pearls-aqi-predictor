@@ -159,7 +159,7 @@ def main():
         raise ValueError("API_KEY_HS not found in .env file")
     
     project = hopsworks.login(
-    host="eu-west.cloud.hopsworks.ai",
+    api_key_value=API_KEY_HS,
     project="Pearls_AQI_Predictor12"
     )
 
