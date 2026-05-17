@@ -133,6 +133,20 @@ def store_features(fs, features_df):
     
     return feature_group
 
+def is_duplicate_record(fs, location, event_timestamp):
+    try:
+        fg = fs.get_feature_group(name="weather_pollution_features", version=1)
+        query = fg.filter(fg.location == location)
+        result = query.read()
+        if len(result) > 0:
+            result['event_timestamp'] = pd.to_datetime(result['event_timestamp'])
+            matches = result[result['event_timestamp'] == event_timestamp]
+            return len(matches) > 0
+        return False
+    except Exception as e:
+        print(f"Error checking for duplicate record: {e}")
+        return False
+
 def main():
     global API_KEY
     global API_KEY_HS
@@ -144,55 +158,48 @@ def main():
     if not API_KEY_HS:
         raise ValueError("API_KEY_HS not found in .env file")
     
-    r = requests.get("http://api.openweathermap.org/geo/1.0/reverse", params = {'lat': 24.8607, 'lon': 67.0011, 'limit': 1, 'appid': API_KEY})
+    project = hopsworks.login(
+    host="eu-west.cloud.hopsworks.ai",
+    project="Pearls_AQI_Predictor12"
+    )
 
-    print(r.json()[0]['name'])
-    # project = hopsworks.login(
-    # host="eu-west.cloud.hopsworks.ai",
-    # project="Pearls_AQI_Predictor12"
-    # )
+    fs = project.get_feature_store()
+    print("Connected to Hopsworks feature store")
 
-    # fs = project.get_feature_store()
-    # print("Connected to Hopsworks feature store")
+    KARACHI_Lyari_LAT = 24.8607
+    KARACHI_Lyari_LON = 67.0011
 
-    # try:
-    #     fg = fs.get_feature_group(name="weather_pollution_features", version=1)
-    #     fg.delete()
-    #     print("Deleted existing feature group to avoid duplicates")
-    # except Exception as e:
-    #     print("No existing feature group found, proceeding to create a new one")
+    weather_raw = fetch_current_weather(KARACHI_Lyari_LAT, KARACHI_Lyari_LON)
+    time.sleep(0.1)
 
+    pollution_raw = fetch_current_air_pollution(KARACHI_Lyari_LAT, KARACHI_Lyari_LON)
+    pollution_timestamp = datetime.fromtimestamp(pollution_raw['list'][0]['dt'])
+    if is_duplicate_record(fs, "Karachi_Lyari", pollution_timestamp):
+        print("Duplicate record detected. Skipping data insertion.")
+        return
+    time.sleep(0.1)
 
-    # KARACHI_LAT = 24.8607
-    # KARACHI_LON = 67.0011
+    weather_parsed = parse_weather_data(weather_raw)
+    pollution_parsed = parse_air_pollution_data(pollution_raw)
 
-    # weather_raw = fetch_current_weather(KARACHI_LAT, KARACHI_LON)
-    # time.sleep(0.1)
+    features_df = build_record(weather_parsed, pollution_parsed, "Karachi_Lyari")
 
-    # pollution_raw = fetch_current_air_pollution(KARACHI_LAT, KARACHI_LON)
-    # time.sleep(0.1)
-
-    # weather_parsed = parse_weather_data(weather_raw)
-    # pollution_parsed = parse_air_pollution_data(pollution_raw)
-
-    # features_df = build_record(weather_parsed, pollution_parsed, "Karachi")
-
-    # if features_df is not None and not features_df.empty:
-    #     print("Collected Data:")
-    #     print(f"Temperature: {features_df['temperature'].iloc[0]} °C")
-    #     print(f"Humidity: {features_df['humidity'].iloc[0]}%")
-    #     print(f"Wind Speed: {features_df['wind_speed'].iloc[0]} m/s")
-    #     print(f"PM10 Level: {features_df['pm10'].iloc[0]} µg/m³")
-    #     print(f"Air Quality Index: {features_df['aqi'].iloc[0]}")
-    #     print(f"PM2.5 Level: {features_df['pm2_5'].iloc[0]} µg/m³")
-    #     print(f"Event Timestamp: {features_df['event_timestamp'].iloc[0]}")
-    #     print(f"AQI is Poor: {'Yes' if features_df['aqi_is_poor'].iloc[0] == 1 else 'No'}")
-    #     print(f"PM2.5 Level Exceeds WHO: {'Yes' if features_df['pm25_exceeds_who'].iloc[0] == 1 else 'No'}")
-    #     print("Storing in Hopsworks")
-    #     store_features(fs, features_df)
-    #     print("Data stored successfully")
-    # else:
-    #     print("No valid data to store")
+    if features_df is not None and not features_df.empty:
+        print("Collected Data:")
+        print(f"Temperature: {features_df['temperature'].iloc[0]} °C")
+        print(f"Humidity: {features_df['humidity'].iloc[0]}%")
+        print(f"Wind Speed: {features_df['wind_speed'].iloc[0]} m/s")
+        print(f"PM10 Level: {features_df['pm10'].iloc[0]} µg/m³")
+        print(f"Air Quality Index: {features_df['aqi'].iloc[0]}")
+        print(f"PM2.5 Level: {features_df['pm2_5'].iloc[0]} µg/m³")
+        print(f"Event Timestamp: {features_df['event_timestamp'].iloc[0]}")
+        print(f"AQI is Poor: {'Yes' if features_df['aqi_is_poor'].iloc[0] == 1 else 'No'}")
+        print(f"PM2.5 Level Exceeds WHO: {'Yes' if features_df['pm25_exceeds_who'].iloc[0] == 1 else 'No'}")
+        print("Storing in Hopsworks")
+        store_features(fs, features_df)
+        print("Data stored successfully")
+    else:
+        print("No valid data to store")
 
 if __name__ == "__main__":
     main()
