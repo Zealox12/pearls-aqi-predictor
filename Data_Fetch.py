@@ -136,11 +136,10 @@ def store_features(fs, features_df):
 def is_duplicate_record(fs, location, event_timestamp):
     try:
         fg = fs.get_feature_group(name="weather_pollution_features", version=1)
-        query = fg.filter(fg.location == location)
-        result = query.read()
-        if len(result) > 0:
-            result['event_timestamp'] = pd.to_datetime(result['event_timestamp'])
-            matches = result[result['event_timestamp'] == event_timestamp]
+        df = fg.read()
+        if len(df) > 0:
+            df['event_timestamp'] = pd.to_datetime(df['event_timestamp'])
+            matches = df[df['event_timestamp'] == event_timestamp]
             return len(matches) > 0
         return False
     except Exception as e:
