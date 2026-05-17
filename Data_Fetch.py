@@ -160,7 +160,8 @@ def main():
     
     project = hopsworks.login(
     api_key_value=API_KEY_HS,
-    project="Pearls_AQI_Predictor12"
+    project="Pearls_AQI_Predictor12",
+    host = "eu-west.cloud.hopsworks.ai"
     )
 
     fs = project.get_feature_store()
