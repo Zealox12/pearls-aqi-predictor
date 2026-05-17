@@ -20,7 +20,7 @@ jobs:
 
             - name: Install dependencies
               run: |
-                pip install requests pandas python-dotenv hopsworks==4.7.*
+                pip install requests pandas python-dotenv hopsworks[python]==4.7.*
 
             - name: Fetch and store AQI data
               env:
