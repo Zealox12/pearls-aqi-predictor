@@ -61,17 +61,17 @@ def build_historical_record(hour_data, location):
     event_ts = datetime.fromtimestamp(timestamp) if timestamp else datetime.now()
 
     record = {
-        'temperature': 0,
-        'feels_like': 0,
-        'temp_min': 0,
-        'temp_max': 0,
+        'temperature': 0.0,
+        'feels_like': 0.0,
+        'temp_min': 0.0,
+        'temp_max': 0.0,
         'humidity': 0,
-        'pressure': 0,
-        'sea_level': 0,
-        'grnd_level': 0,
-        'wind_speed': 0,
+        'pressure': 0.0,
+        'sea_level': 0.0,
+        'grnd_level': 0.0,
+        'wind_speed': 0.0,
         'wind_direction': 0,
-        'wind_gust': 0,
+        'wind_gust': 0.0,
         'clouds': 0,
         'weather_main': 'unknown',
         'weather_description': 'unknown',
@@ -145,7 +145,7 @@ def main():
     print("Fetching historical air pollution data for Karachi Lyari...")
 
     end_date = datetime.now()
-    for months_ago in range(3, 7):
+    for months_ago in range(1, 3):
         start_date = end_date - timedelta(days=30 * months_ago)
         end_chunk = end_date - timedelta(days=30 * (months_ago - 1))
         backfill_data(fs, "Karachi_Lyari", KARACHI_LYARI_LAT, KARACHI_LYARI_LON, start_date, end_chunk)
