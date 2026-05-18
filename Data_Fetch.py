@@ -81,13 +81,13 @@ def parse_air_pollution_data(air_pollution_data):
     components = air_pollution_data.get('list', [{}])[0].get('components', {})
     parsed_data = {
         'co': components.get('co'),
-        'no': components.get('no'),
+        'no': int(components.get('no')) if components.get('no') is not None else None,
         'no2': components.get('no2'),
         'o3': components.get('o3'),
         'so2': components.get('so2'),
         'pm2_5': components.get('pm2_5'),
         'pm10': components.get('pm10'),
-        'nh3': components.get('nh3'),
+        'nh3': int(components.get('nh3')) if components.get('nh3') is not None else None,
         'aqi': air_pollution_data.get('list', [{}])[0].get('main', {}).get('aqi'),
         'timestamp': air_pollution_data.get('list', [{}])[0].get('dt')
     }
@@ -105,6 +105,10 @@ def build_record(weather_parsed, pollution_parsed, location_name):
         record['event_timestamp'] = datetime.fromtimestamp(record['timestamp'])
     else:
         record['event_timestamp'] = datetime.now()
+
+    record['hour_of_day'] = record['event_timestamp'].hour
+    record['day_of_week'] = record['event_timestamp'].weekday()
+    record['is_weekend'] = 1 if record['day_of_week'] >= 5 else 0
 
     record['aqi_is_poor'] = 1 if record.get('aqi') and record['aqi'] >= 3 else 0
     record['pm25_exceeds_who'] = 1 if record.get('pm2_5') and record['pm2_5'] > 15 else 0
