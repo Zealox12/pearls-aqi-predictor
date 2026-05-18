@@ -61,20 +61,20 @@ def build_historical_record(hour_data, location):
     event_ts = datetime.fromtimestamp(timestamp) if timestamp else datetime.now()
 
     record = {
-        'temperature': None,
-        'feels_like': None,
-        'temp_min': None,
-        'temp_max': None,
-        'humidity': None,
-        'pressure': None,
-        'sea_level': None,
-        'grnd_level': None,
-        'wind_speed': None,
-        'wind_direction': None,
-        'wind_gust': None,
-        'clouds': None,
-        'weather_main': None,
-        'weather_description': None,
+        'temperature': 0,
+        'feels_like': 0,
+        'temp_min': 0,
+        'temp_max': 0,
+        'humidity': 0,
+        'pressure': 0,
+        'sea_level': 0,
+        'grnd_level': 0,
+        'wind_speed': 0,
+        'wind_direction': 0,
+        'wind_gust': 0,
+        'clouds': 0,
+        'weather_main': 'unknown',
+        'weather_description': 'unknown',
         'rain_1h': 0,
         'snow_1h': 0,
         'location': location,
@@ -84,13 +84,13 @@ def build_historical_record(hour_data, location):
         'pm25_exceeds_who': 1 if components.get('pm2_5', 0) > 15 else 0,
         'aqi': hour_data.get('main', {}).get('aqi'),
         'co': components.get('co'),
-        'no': int(components.get('no')) if components.get('no') is not None else None,
+        'no': int(components.get('no')) if components.get('no') is not None else 0,
         'no2': components.get('no2'),
         'o3': components.get('o3'),
         'so2': components.get('so2'),
         'pm2_5': components.get('pm2_5'),
         'pm10': components.get('pm10'),
-        'nh3': int(components.get('nh3')) if components.get('nh3') is not None else None
+        'nh3': int(components.get('nh3')) if components.get('nh3') is not None else 0
     }
     return record
 
@@ -145,7 +145,7 @@ def main():
     print("Fetching historical air pollution data for Karachi Lyari...")
 
     end_date = datetime.now()
-    for months_ago in range(1, 7):
+    for months_ago in range(3, 7):
         start_date = end_date - timedelta(days=30 * months_ago)
         end_chunk = end_date - timedelta(days=30 * (months_ago - 1))
         backfill_data(fs, "Karachi_Lyari", KARACHI_LYARI_LAT, KARACHI_LYARI_LON, start_date, end_chunk)
