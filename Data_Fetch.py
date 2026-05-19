@@ -54,23 +54,23 @@ def parse_weather_data(weather_data):
         return None
 
     parsed_data = {
-        'temperature': weather_data.get('main', {}).get('temp'),
-        'feels_like': weather_data.get('main',{}).get('feels_like'),
-        'temp_min': weather_data.get('main', {}).get('temp_min'),
-        'temp_max': weather_data.get('main', {}).get('temp_max'),
-        'humidity': weather_data.get('main', {}).get('humidity'),
+        'temperature': float(weather_data.get('main', {}).get('temp', 0)),
+        'feels_like': float(weather_data.get('main',{}).get('feels_like', 0)),
+        'temp_min': float(weather_data.get('main', {}).get('temp_min', 0)),
+        'temp_max': float(weather_data.get('main', {}).get('temp_max', 0)),
+        'humidity': int(weather_data.get('main', {}).get('humidity',0)),
         'pressure': float(weather_data.get('main', {}).get('pressure', 0)),
         'sea_level': float(weather_data.get('main', {}).get('sea_level', 0)) if weather_data.get('main', {}).get('sea_level') else 0.0,
         'grnd_level': float(weather_data.get('main', {}).get('grnd_level', 0)) if weather_data.get('main', {}).get('grnd_level') else 0.0,
-        'wind_speed': weather_data.get('wind', {}).get('speed'),
-        'wind_direction': weather_data.get('wind', {}).get('deg'),
-        'wind_gust': weather_data.get('wind', {}).get('gust'),
-        'clouds': weather_data.get('clouds', {}).get('all'),
-        'weather_main': weather_data.get('weather', [{}])[0].get('main'),
-        'weather_description': weather_data.get('weather', [{}])[0].get('description'),
-        'rain_1h': weather_data.get('rain', {}).get('1h', 0),
-        'snow_1h': weather_data.get('snow', {}).get('1h', 0),
-        'timestamp': weather_data.get('dt')
+        'wind_speed': float(weather_data.get('wind', {}).get('speed', 0)),
+        'wind_direction': int(weather_data.get('wind', {}).get('deg',0)),
+        'wind_gust': float(weather_data.get('wind', {}).get('gust',0)) if weather_data.get('wind', {}).get('gust') else 0.0,
+        'clouds': int(weather_data.get('clouds', {}).get('all', 0)),
+        'weather_main': str(weather_data.get('weather', [{}])[0].get('main', 'unknown')),
+        'weather_description': str(weather_data.get('weather', [{}])[0].get('description', 'unknown')),
+        'rain_1h': float(weather_data.get('rain', {}).get('1h', 0)),
+        'snow_1h': float(weather_data.get('snow', {}).get('1h', 0)),
+        'timestamp': int(weather_data.get('dt', 0))
     }
     return parsed_data
 
@@ -80,16 +80,16 @@ def parse_air_pollution_data(air_pollution_data):
 
     components = air_pollution_data.get('list', [{}])[0].get('components', {})
     parsed_data = {
-        'co': components.get('co'),
-        'no': int(components.get('no')) if components.get('no') is not None else 0,
-        'no2': components.get('no2'),
-        'o3': components.get('o3'),
-        'so2': components.get('so2'),
-        'pm2_5': components.get('pm2_5'),
-        'pm10': components.get('pm10'),
-        'nh3': int(components.get('nh3')) if components.get('nh3') is not None else 0,
-        'aqi': air_pollution_data.get('list', [{}])[0].get('main', {}).get('aqi'),
-        'timestamp': air_pollution_data.get('list', [{}])[0].get('dt')
+        'co': float(components.get('co', 0.0)),
+        'no': int(components.get('no', 0)) if components.get('no') is not None else 0,
+        'no2': float(components.get('no2', 0.0)),
+        'o3': float(components.get('o3', 0.0)),
+        'so2': float(components.get('so2', 0.0)),
+        'pm2_5': float(components.get('pm2_5', 0.0)),
+        'pm10': float(components.get('pm10', 0.0)),
+        'nh3': int(components.get('nh3', 0)) if components.get('nh3') is not None else 0,
+        'aqi': int(air_pollution_data.get('list', [{}])[0].get('main', {}).get('aqi', 1)),
+        'timestamp': int(air_pollution_data.get('list', [{}])[0].get('dt', 0))
     }
     return parsed_data
 
