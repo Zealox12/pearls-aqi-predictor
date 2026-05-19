@@ -68,8 +68,8 @@ def parse_weather_data(weather_data):
         'clouds': int(weather_data.get('clouds', {}).get('all', 0)),
         'weather_main': str(weather_data.get('weather', [{}])[0].get('main', 'unknown')),
         'weather_description': str(weather_data.get('weather', [{}])[0].get('description', 'unknown')),
-        'rain_1h': float(weather_data.get('rain', {}).get('1h', 0)),
-        'snow_1h': float(weather_data.get('snow', {}).get('1h', 0)),
+        'rain_1h': int(weather_data.get('rain', {}).get('1h', 0)),
+        'snow_1h': int(weather_data.get('snow', {}).get('1h', 0)),
         'timestamp': int(weather_data.get('dt', 0))
     }
     return parsed_data
