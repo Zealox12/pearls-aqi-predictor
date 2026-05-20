@@ -1,0 +1,44 @@
+{
+  "LogisticRegression": {
+    "accuracy": 0.928,
+    "f1_score": 0.9542,
+    "good_recall": 0.9786,
+    "poor_recall": 0.9168,
+    "train_time": 1.7715
+  },
+  "RandomForest": {
+    "accuracy": 0.9469,
+    "f1_score": 0.9684,
+    "good_recall": 0.7413,
+    "poor_recall": 0.9924,
+    "train_time": 4.0086
+  },
+  "GradientBoosting": {
+    "accuracy": 0.9458,
+    "f1_score": 0.9673,
+    "good_recall": 0.8016,
+    "poor_recall": 0.9777,
+    "train_time": 5.8714
+  },
+  "XGBoost": {
+    "accuracy": 0.9465,
+    "f1_score": 0.9676,
+    "good_recall": 0.8215,
+    "poor_recall": 0.9742,
+    "train_time": 0.1357
+  },
+  "LightGBM": {
+    "accuracy": 0.9407,
+    "f1_score": 0.9644,
+    "good_recall": 0.7627,
+    "poor_recall": 0.9801,
+    "train_time": 2.9405
+  },
+  "MLP_NeuralNet": {
+    "accuracy": 0.9319,
+    "f1_score": 0.9588,
+    "good_recall": 0.7655,
+    "poor_recall": 0.9687,
+    "train_time": 4.2471
+  }
+}
