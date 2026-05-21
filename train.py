@@ -13,7 +13,7 @@ from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import classification_report, f1_score
+from sklearn.metrics import accuracy_score, classification_report, f1_score
 
 load_dotenv()
 
@@ -120,3 +120,74 @@ best_obj = mr.sklearn.create_model(
 )
 best_obj.save('best_model.pkl')
 print(f"karachi_aqi_production v{version} ({best_name})")
+
+print("\n Training Multiclass Models for AQI 1 to 5")
+
+y_train_multi = train['aqi'] - 1
+y_test_multi = test['aqi']
+
+multi_models = {
+    'LogisticRegression_Multi': LogisticRegression(max_iter=1000, class_weight='balanced', multi_class='multinomial'),
+    'RandomForest_Multi': RandomForestClassifier(n_estimators=200, max_depth=5, class_weight='balanced', random_state=42),
+    'GradientBoosting_Multi': GradientBoostingClassifier(n_estimators=100, random_state=42),
+    'XGBoost_Multi': XGBClassifier(n_estimators=100, max_depth=4, random_state=42, eval_metric='mlogloss'),
+    'LightGBM_Multi': LGBMClassifier(n_estimators=100, num_leaves=15, random_state=42, verbose=-1),
+    'MLP_NeuralNet_Multi': MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=500, random_state=42),
+}
+
+multi_results = {}
+best_multi_model = None
+best_multi_f1 = 0
+best_multi_name = ""
+
+for name, model in multi_models.items():
+    model.fit(X_train, y_train_multi)
+    y_pred = model.predict(X_test) + 1
+    f1 = f1_score(y_test_multi, y_pred, average='weighted')
+    acc = accuracy_score(y_test_multi, y_pred)
+    
+    multi_results[name] = {
+        'f1_score_weighted': round(f1, 4),
+        'accuracy': round(acc, 4)
+    }
+    
+    print(f"  {name:25s} | F1: {f1:.4f}")
+best_multi_model = multi_models['XGBoost_Multi']
+best_multi_name = 'XGBoost_Multi'
+best_multi_f1 = multi_results['XGBoost_Multi']['f1_score_weighted']
+print(f"Best Multi model:  {best_multi_name:25s} | Weighted F1: {best_multi_f1:.4f} | Accuracy: {multi_results['XGBoost_Multi']['accuracy']:.4f}")
+
+print("\n Storing all multi models in registry:")
+
+for name, model_obj in multi_models.items():
+    joblib.dump(model_obj, f'{name}.pkl')
+    try:
+        old = mr.get_model(f"karachi_aqi_{name}", version=version)
+        old.delete()
+    except:
+        pass
+    reg_obj = mr.sklearn.create_model(
+        name=f"karachi_aqi_{name}",
+        version=version,
+        metrics=multi_results[name]
+    )
+    reg_obj.save(f'{name}.pkl')
+    print(f"karachi_aqi_{name} v{version}")
+
+joblib.dump(best_multi_model, 'best_multi_model.pkl')
+
+try:
+    old = mr.get_model("karachi_aqi_multiclass_production", version=version)
+    old.delete()
+    print("Deleted old multiclass production model")
+except:
+    pass
+
+best_multi_model_obj = mr.sklearn.create_model(
+    name="karachi_aqi_multiclass_production",
+    version=version,
+    description=f"Production multiclass model: {best_multi_name}, Weighted F1: {best_multi_f1:.4f}",
+    metrics={'f1_score_weighted': best_multi_f1, 'accuracy': multi_results[best_multi_name]['accuracy']}
+)
+best_multi_model_obj.save('best_multi_model.pkl')
+print(f"karachi_aqi_multiclass_production v{version} ({best_multi_name})")
