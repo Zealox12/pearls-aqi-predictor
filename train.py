@@ -90,6 +90,11 @@ version = int(datetime.now().strftime('%Y%m%d'))
 
 for name, model_obj in models.items():
     joblib.dump(model_obj, f'{name}.pkl')
+    try:
+        old = mr.get_model(f"karachi_aqi_{name}", version=version)
+        old.delete()
+    except:
+        pass
     reg_obj = mr.sklearn.create_model(
         name=f"karachi_aqi_{name}",
         version=version,
@@ -97,6 +102,14 @@ for name, model_obj in models.items():
     )
     reg_obj.save(f'{name}.pkl')
     print(f"karachi_aqi_{name} v{version}")
+
+try:
+    old = mr.get_model("karachi_aqi_production", version=version)
+    old.delete()
+    print("  🗑️ Deleted old production model")
+except:
+    pass
+
 
 joblib.dump(best_model, 'best_model.pkl')
 best_obj = mr.sklearn.create_model(
