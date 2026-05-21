@@ -126,7 +126,7 @@ def store_features(fs, features_df):
     )
     
     if feature_group is not None:
-        feature_group.insert(features_df, wait=True)
+        feature_group.insert(features_df, wait=False)
         print(f"✅ Stored {len(features_df)} record(s) in feature store")
     else:
         print("❌ Could not create feature group")
