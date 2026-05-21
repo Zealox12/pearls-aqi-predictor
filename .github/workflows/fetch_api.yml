@@ -22,7 +22,7 @@ jobs:
               run: |
                 pip install requests pandas python-dotenv
                 pip install pyarrow==12.0.1 confluent-kafka
-                pip install hopsworks==4.4.0
+                pip install "hopsworks[python]==4.7.*"
 
             - name: Fetch and store AQI data
               env:
