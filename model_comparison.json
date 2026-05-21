@@ -1,44 +1,60 @@
 {
-  "LogisticRegression": {
-    "accuracy": 0.928,
-    "f1_score": 0.9542,
-    "good_recall": 0.9786,
-    "poor_recall": 0.9168,
-    "train_time": 1.7715
+  "timestamp": "2026-05-21 04:08:46",
+  "dataset": {
+    "train_size": 35466,
+    "test_size": 11631,
+    "train_poor_pct": 89.3,
+    "test_poor_pct": 81.9,
+    "features": [
+      "pm2_5",
+      "pm10",
+      "so2",
+      "co",
+      "no2",
+      "hour_of_day",
+      "day_of_week",
+      "month",
+      "year",
+      "is_morning_peak",
+      "is_winter",
+      "is_dust_event",
+      "is_clean_month",
+      "is_industrial_workday",
+      "is_weekend"
+    ]
   },
-  "RandomForest": {
-    "accuracy": 0.9469,
-    "f1_score": 0.9684,
-    "good_recall": 0.7413,
-    "poor_recall": 0.9924,
-    "train_time": 4.0086
-  },
-  "GradientBoosting": {
-    "accuracy": 0.9458,
-    "f1_score": 0.9673,
-    "good_recall": 0.8016,
-    "poor_recall": 0.9777,
-    "train_time": 5.8714
-  },
-  "XGBoost": {
-    "accuracy": 0.9465,
-    "f1_score": 0.9676,
-    "good_recall": 0.8215,
-    "poor_recall": 0.9742,
-    "train_time": 0.1357
-  },
-  "LightGBM": {
-    "accuracy": 0.9407,
-    "f1_score": 0.9644,
-    "good_recall": 0.7627,
-    "poor_recall": 0.9801,
-    "train_time": 2.9405
-  },
-  "MLP_NeuralNet": {
-    "accuracy": 0.9319,
-    "f1_score": 0.9588,
-    "good_recall": 0.7655,
-    "poor_recall": 0.9687,
-    "train_time": 4.2471
+  "best_model": "RandomForest",
+  "best_f1": 0.9722147288912868,
+  "results": {
+    "RandomForest": {
+      "f1_score": 0.9722,
+      "accuracy": 0.9557,
+      "good_recall": 0.9995,
+      "poor_recall": 0.946
+    },
+    "XGBoost": {
+      "f1_score": 0.9722,
+      "accuracy": 0.9547,
+      "good_recall": 0.9032,
+      "poor_recall": 0.9661
+    },
+    "LightGBM": {
+      "f1_score": 0.9674,
+      "accuracy": 0.9458,
+      "good_recall": 0.785,
+      "poor_recall": 0.9814
+    },
+    "GradientBoosting": {
+      "f1_score": 0.9673,
+      "accuracy": 0.9458,
+      "good_recall": 0.8016,
+      "poor_recall": 0.9777
+    },
+    "LogisticRegression": {
+      "f1_score": 0.9543,
+      "accuracy": 0.928,
+      "good_recall": 0.9786,
+      "poor_recall": 0.9168
+    }
   }
 }
