@@ -1,31 +1,29 @@
-# test_api_depth.py
-import requests, os
-from dotenv import load_dotenv
-from datetime import datetime, timedelta
+import requests
 
-load_dotenv()
-API_KEY = os.getenv("API_KEY")
 lat, lon = 24.8607, 67.0011
-end_date = datetime.now()
 
-print("Testing how far back OpenWeather free API goes...\n")
-
-for months_back in range(1,100):
-    start_date = end_date - timedelta(days=30 * months_back)
-    end_chunk = end_date - timedelta(days=30 * (months_back - 1))
+# Test historical air quality availability
+for months_back in [1, 6, 12, 24, 36, 48, 60,100, 150, 160]:
+    end_date = "2026-05-22"
+    start_date = f"2026-{5-months_back:02d}-22" if months_back < 5 else f"{2026-months_back//12}-{(12-months_back%12):02d}-22"
+    
+    # Simpler: test a specific date
+    from datetime import datetime, timedelta
+    test_date = datetime.now() - timedelta(days=30 * months_back)
     
     r = requests.get(
-        "https://api.openweathermap.org/data/2.5/air_pollution/history",
+        "https://air-quality-api.open-meteo.com/v1/air-quality",
         params={
-            'lat': lat, 'lon': lon,
-            'start': int(start_date.timestamp()),
-            'end': int(end_chunk.timestamp()),
-            'appid': API_KEY
+            'latitude': lat, 'longitude': lon,
+            'start_date': test_date.strftime('%Y-%m-%d'),
+            'end_date': test_date.strftime('%Y-%m-%d'),
+            'hourly': 'pm2_5,pm10'
         }
     )
     
     if r.status_code == 200:
-        records = len(r.json().get('list', []))
-        print(f"✅ {months_back} months back ({start_date.strftime('%b %Y')}): {records} records")
+        data = r.json()
+        records = len(data.get('hourly', {}).get('time', []))
+        print(f"✅ {months_back} months back ({test_date.strftime('%b %Y')}): {records} records")
     else:
-        print(f"❌ {months_back} months back ({start_date.strftime('%b %Y')}): Error {r.status_code}")
+        print(f"❌ {months_back} months back ({test_date.strftime('%b %Y')}): Error {r.status_code}")
