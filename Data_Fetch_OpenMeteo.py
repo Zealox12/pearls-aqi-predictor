@@ -4,7 +4,7 @@ sys.modules['pyjks'] = m
 
 import requests, os
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import hopsworks
 import pandas as pd
 
@@ -41,7 +41,10 @@ def fetch_openmeteo_current(lat, lon):
     if not w_hourly.get('time'):
         return None
     
-    idx = datetime.now().hour  # latest reading
+    karachi_tz = timezone(timedelta(hours=5))
+    current_hour = datetime.now(karachi_tz).hour
+    
+    idx = current_hour  # latest reading
 
     return {
         'event_timestamp': pd.to_datetime(aq_hourly['time'][idx]),
