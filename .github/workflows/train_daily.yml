@@ -21,4 +21,4 @@ jobs:
       - name: Train & Register Models
         env:
           API_KEY_HS: ${{ secrets.API_KEY_HS }}
-        run: python train.py
+        run: python train_openmeteo.py
