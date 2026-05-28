@@ -1,4 +1,4 @@
-# train_openmeteo.py — HORIZON-SPECIFIC VERSION
+# train_openmeteo.py — RECURSIVE MULTI-OUTPUT VERSION
 import sys, types
 m = types.ModuleType('pyjks')
 sys.modules['pyjks'] = m
@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import hopsworks
 import pandas as pd
 import numpy as np
+from sklearn.multioutput import MultiOutputRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error
 
@@ -31,19 +32,13 @@ df['month'] = df['event_timestamp'].dt.month
 df['hour_of_day'] = df['event_timestamp'].dt.hour
 df = df[df['year'] >= 2023]
 
-# ============================================
-# CREATE LAG FEATURES
-# ============================================
-df['pm25_lag_24h'] = df['pm2_5'].shift(24)
-df['pm10_lag_24h'] = df['pm10'].shift(24)
-df['pm25_lag_48h'] = df['pm2_5'].shift(48)
-df['pm10_lag_48h'] = df['pm10'].shift(48)
+# Lag features
 df['pm25_3d_ago'] = df['pm2_5'].shift(72)
 df['pm10_3d_ago'] = df['pm10'].shift(72)
-df['pm25_7d_ago'] = df['pm2_5'].shift(168)
-df['pm10_7d_ago'] = df['pm10'].shift(168)
 df['temp_3d_ago'] = df['temperature'].shift(72)
 df['wind_3d_ago'] = df['wind_speed'].shift(72)
+df['pm25_7d_ago'] = df['pm2_5'].shift(168)
+df['pm10_7d_ago'] = df['pm10'].shift(168)
 df['temp_7d_ago'] = df['temperature'].shift(168)
 df['wind_7d_ago'] = df['wind_speed'].shift(168)
 
@@ -51,17 +46,20 @@ df['is_clean_month'] = (df['month'] == 9).astype(int)
 df['is_weekend'] = df['event_timestamp'].dt.dayofweek.isin([5, 6]).astype(int)
 df['is_may'] = (df['month'] == 5).astype(int)
 
-# ============================================
-# TARGETS FOR 3 HORIZONS
-# ============================================
-df['aqi_day1'] = df['european_aqi'].shift(-24)  # 24h ahead
-df['aqi_day2'] = df['european_aqi'].shift(-48)  # 48h ahead
-df['aqi_day3'] = df['european_aqi'].shift(-72)  # 72h ahead
+# Targets: Tomorrow's AQI + 5 pollutants (for recursive forecasting)
+df['aqi_tomorrow'] = df['european_aqi'].shift(-24)
+df['pm25_tomorrow'] = df['pm2_5'].shift(-24)
+df['pm10_tomorrow'] = df['pm10'].shift(-24)
+df['so2_tomorrow'] = df['so2'].shift(-24)
+df['co_tomorrow'] = df['co'].shift(-24)
+df['no2_tomorrow'] = df['no2'].shift(-24)
 
-# ============================================
-# FEATURES FOR EACH HORIZON
-# ============================================
-features_day1 = [
+
+target_cols = ['aqi_tomorrow', 'pm25_tomorrow', 'pm10_tomorrow', 
+               'so2_tomorrow', 'co_tomorrow', 'no2_tomorrow']
+
+# Features
+features = [
     'pm2_5', 'pm10', 'so2', 'co', 'no2',
     'temperature', 'humidity', 'wind_speed', 'pressure',
     'pm25_3d_ago', 'pm10_3d_ago', 'pm25_7d_ago', 'pm10_7d_ago',
@@ -69,79 +67,44 @@ features_day1 = [
     'hour_of_day', 'month', 'is_weekend', 'is_may', 'is_clean_month'
 ]
 
-features_day2 = [
-    'pm25_lag_24h', 'pm10_lag_24h',
-    'pm25_3d_ago', 'pm10_3d_ago', 'pm25_7d_ago', 'pm10_7d_ago',
-    'temp_3d_ago', 'wind_3d_ago', 'temp_7d_ago', 'wind_7d_ago',
-    'hour_of_day', 'month', 'is_weekend', 'is_may', 'is_clean_month'
-]
+# Train
+df_model = df.dropna(subset=features + target_cols)
+train = df_model[df_model['year'].isin([2023, 2024])]
+test = df_model[df_model['year'] >= 2025]
 
-features_day3 = [
-    'pm25_lag_48h', 'pm10_lag_48h',
-    'pm25_3d_ago', 'pm10_3d_ago', 'pm25_7d_ago', 'pm10_7d_ago',
-    'temp_3d_ago', 'wind_3d_ago', 'temp_7d_ago', 'wind_7d_ago',
-    'hour_of_day', 'month', 'is_weekend', 'is_may', 'is_clean_month'
-]
+model = MultiOutputRegressor(Ridge(alpha=1.0))
+model.fit(train[features].fillna(0), train[target_cols])
 
-# ============================================
-# TRAIN 3 HORIZON-SPECIFIC MODELS
-# ============================================
-print("\n🔄 Training horizon-specific models...")
-print("="*55)
+# Evaluate
+preds = model.predict(test[features].fillna(0))
+mae_aqi = mean_absolute_error(test['aqi_tomorrow'], preds[:, 0])
+mae_pm25 = mean_absolute_error(test['pm25_tomorrow'], preds[:, 1])
 
-models = {}
-results = {}
+persist = mean_absolute_error(test['aqi_tomorrow'], test['european_aqi'])
+print(f"\nAQI MAE: {mae_aqi:.2f} | PM2.5 MAE: {mae_pm25:.1f}")
+print(f"Improvement over persistence: {((persist-mae_aqi)/persist*100):.1f}%")
 
-for day, features, target in [
-    ('Day1', features_day1, 'aqi_day1'),
-    ('Day2', features_day2, 'aqi_day2'),
-    ('Day3', features_day3, 'aqi_day3')
-]:
-    df_model = df.dropna(subset=features + [target])
-    train = df_model[df_model['year'].isin([2023, 2024])]
-    test = df_model[df_model['year'] >= 2025]
-    
-    model = Ridge(alpha=1.0)
-    model.fit(train[features].fillna(0), train[target])
-    preds = model.predict(test[features].fillna(0))
-    mae = mean_absolute_error(test[target], preds)
-    
-    models[day] = model
-    results[day] = {'MAE': round(mae, 2), 'features': features}
-    
-    persist = mean_absolute_error(test[target], test['european_aqi'])
-    print(f"  {day}: MAE={mae:.2f} | Persistence={persist:.2f} | Improvement={((persist-mae)/persist*100):.1f}%")
-
-# ============================================
-# SAVE LOCALLY
-# ============================================
+# Save
 import os as _os
 _os.makedirs('meteo', exist_ok=True)
+joblib.dump(model, 'meteo/recursive_model.pkl')
+joblib.dump(features, 'meteo/features.pkl')
+joblib.dump(target_cols, 'meteo/target_cols.pkl')
+print("💾 Model saved to meteo/recursive_model.pkl")
 
-for day, model in models.items():
-    joblib.dump(model, f'meteo/ridge_{day.lower()}.pkl')
-    print(f"  💾 Saved: meteo/ridge_{day.lower()}.pkl")
-
-# ============================================
-# REGISTER IN HOPSWORKS
-# ============================================
-print("\n📦 Registering models in Hopsworks...")
+# Register
 mr = project.get_model_registry()
 version = int(datetime.now().strftime('%Y%m%d'))
+try:
+    old = mr.get_model("karachi_aqi_recursive", version=version)
+    old.delete()
+except: pass
 
-for day, model in models.items():
-    joblib.dump(model, f'meteo/ridge_{day.lower()}.pkl')
-    try:
-        old = mr.get_model(f"karachi_aqi_{day.lower()}", version=version)
-        old.delete()
-    except:
-        pass
-    reg_obj = mr.sklearn.create_model(
-        name=f"karachi_aqi_{day.lower()}",
-        version=version,
-        metrics={'MAE': results[day]['MAE']}
-    )
-    reg_obj.save(f'meteo/ridge_{day.lower()}.pkl')
-    print(f"  📦 karachi_aqi_{day.lower()} v{version} (MAE: {results[day]['MAE']})")
-
-print(f"\n✅ Training complete! 3 models registered.")
+reg_obj = mr.sklearn.create_model(
+    name="karachi_aqi_recursive",
+    version=version,
+    metrics={'AQI_MAE': round(mae_aqi, 2), 'PM25_MAE': round(mae_pm25, 1)}
+)
+reg_obj.save('meteo/recursive_model.pkl')
+print(f"📦 karachi_aqi_recursive v{version} registered")
+print("✅ Training complete!")

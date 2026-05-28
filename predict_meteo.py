@@ -1,4 +1,4 @@
-# predict_meteo.py — HORIZON VERSION
+# predict_meteo.py — RECURSIVE VERSION
 import sys, types
 import json
 m = types.ModuleType('pyjks')
@@ -13,21 +13,18 @@ import numpy as np
 
 load_dotenv()
 
-print("📦 Loading models...")
+print("📦 Loading model...")
 project = hopsworks.login(
     api_key_value=os.getenv('API_KEY_HS'),
     project="Pearls_AQI_Predictor12",
     host="eu-west.cloud.hopsworks.ai"
 )
 mr = project.get_model_registry()
-
-# Load 3 horizon models
-models = {}
-for day in ['day1', 'day2', 'day3']:
-    model_obj = mr.get_model(f"karachi_aqi_{day}", version=20260528)
-    model_obj.download()
-    models[day] = joblib.load(f'meteo/ridge_{day}.pkl')
-print("✅ Models loaded")
+model_obj = mr.get_model("karachi_aqi_recursive", version=20260528)
+model_obj.download()
+model = joblib.load('meteo/recursive_model.pkl')
+features = joblib.load('meteo/features.pkl')
+print("✅ Model loaded")
 
 fs = project.get_feature_store()
 fg = fs.get_feature_group("karachi_aqi_openmeteo", version=1)
@@ -35,38 +32,12 @@ df = fg.read(online=True)
 df['event_timestamp'] = pd.to_datetime(df['event_timestamp'])
 latest = df.sort_values('event_timestamp', ascending=False).iloc[0]
 
-# Features for each day
-features_day1 = [
-    'pm2_5', 'pm10', 'so2', 'co', 'no2',
-    'temperature', 'humidity', 'wind_speed', 'pressure',
-    'pm25_3d_ago', 'pm10_3d_ago', 'pm25_7d_ago', 'pm10_7d_ago',
-    'temp_3d_ago', 'wind_3d_ago', 'temp_7d_ago', 'wind_7d_ago',
-    'hour_of_day', 'month', 'is_weekend', 'is_may', 'is_clean_month'
-]
-
-features_day2 = [
-    'pm25_lag_24h', 'pm10_lag_24h',
-    'pm25_3d_ago', 'pm10_3d_ago', 'pm25_7d_ago', 'pm10_7d_ago',
-    'temp_3d_ago', 'wind_3d_ago', 'temp_7d_ago', 'wind_7d_ago',
-    'hour_of_day', 'month', 'is_weekend', 'is_may', 'is_clean_month'
-]
-
-features_day3 = [
-    'pm25_lag_48h', 'pm10_lag_48h',
-    'pm25_3d_ago', 'pm10_3d_ago', 'pm25_7d_ago', 'pm10_7d_ago',
-    'temp_3d_ago', 'wind_3d_ago', 'temp_7d_ago', 'wind_7d_ago',
-    'hour_of_day', 'month', 'is_weekend', 'is_may', 'is_clean_month'
-]
-
-predictions = []
-
-# Day 1: 24 forecasts (hours 0-23)
-for hour in range(24):
-    future_time = latest['event_timestamp'] + timedelta(hours=hour + 1)
-    past_3d = df[df['event_timestamp'] <= future_time - timedelta(hours=72)].iloc[-1]
-    past_7d = df[df['event_timestamp'] <= future_time - timedelta(hours=168)].iloc[-1]
+def get_features_for_timestamp(df, target_time):
+    """Build feature dict for a specific timestamp using only past data."""
+    past_3d = df[df['event_timestamp'] <= target_time - timedelta(hours=72)].iloc[-1]
+    past_7d = df[df['event_timestamp'] <= target_time - timedelta(hours=168)].iloc[-1]
     
-    features = {
+    return {
         'pm2_5': latest['pm2_5'], 'pm10': latest['pm10'],
         'so2': latest['so2'], 'co': latest['co'], 'no2': latest['no2'],
         'temperature': latest['temperature'], 'humidity': latest['humidity'],
@@ -75,121 +46,80 @@ for hour in range(24):
         'pm25_7d_ago': past_7d['pm2_5'], 'pm10_7d_ago': past_7d['pm10'],
         'temp_3d_ago': past_3d['temperature'], 'wind_3d_ago': past_3d['wind_speed'],
         'temp_7d_ago': past_7d['temperature'], 'wind_7d_ago': past_7d['wind_speed'],
-        'hour_of_day': future_time.hour, 'month': future_time.month,
-        'is_weekend': 1 if future_time.weekday() >= 5 else 0,
-        'is_may': 1 if future_time.month == 5 else 0,
-        'is_clean_month': 1 if future_time.month == 9 else 0
+        'hour_of_day': target_time.hour, 'month': target_time.month,
+        'is_weekend': 1 if target_time.weekday() >= 5 else 0,
+        'is_may': 1 if target_time.month == 5 else 0,
+        'is_clean_month': 1 if target_time.month == 9 else 0
     }
-    
-    X_pred = pd.DataFrame([features])[features_day1].fillna(0)
-    aqi = models['day1'].predict(X_pred)[0]
-    aqi_class = 1 if aqi <= 20 else 2 if aqi <= 40 else 3 if aqi <= 60 else 4 if aqi <= 80 else 5
-    
-    predictions.append({
-        'event_timestamp': future_time.isoformat(), 'hour': future_time.hour,
-        'day': future_time.strftime('%A'), 'date': future_time.strftime('%Y-%m-%d'),
-        'european_aqi': round(float(aqi), 1), 'aqi_class': aqi_class,
-        'is_poor': 1 if aqi_class >= 3 else 0
-    })
 
-# Day 2: use yesterday's actuals (from latest 24h ago)
-for hour in range(24, 48):
-    future_time = latest['event_timestamp'] + timedelta(hours=hour + 1)
-    past_24h = df[df['event_timestamp'] <= future_time - timedelta(hours=24)].iloc[-1]
-    past_3d = df[df['event_timestamp'] <= future_time - timedelta(hours=72)].iloc[-1]
-    past_7d = df[df['event_timestamp'] <= future_time - timedelta(hours=168)].iloc[-1]
+def predict_24h(df, start_time, current_features):
+    """Predict 24 hours of AQI starting from start_time."""
+    preds = []
+    feat = current_features.copy()
     
-    features = {
-        'pm25_lag_24h': past_24h['pm2_5'], 'pm10_lag_24h': past_24h['pm10'],
-        'pm25_3d_ago': past_3d['pm2_5'], 'pm10_3d_ago': past_3d['pm10'],
-        'pm25_7d_ago': past_7d['pm2_5'], 'pm10_7d_ago': past_7d['pm10'],
-        'temp_3d_ago': past_3d['temperature'], 'wind_3d_ago': past_3d['wind_speed'],
-        'temp_7d_ago': past_7d['temperature'], 'wind_7d_ago': past_7d['wind_speed'],
-        'hour_of_day': future_time.hour, 'month': future_time.month,
-        'is_weekend': 1 if future_time.weekday() >= 5 else 0,
-        'is_may': 1 if future_time.month == 5 else 0,
-        'is_clean_month': 1 if future_time.month == 9 else 0
-    }
+    for h in range(24):
+        ft = start_time + timedelta(hours=h+1)
+        feat['hour_of_day'] = ft.hour
+        feat['month'] = ft.month
+        feat['is_weekend'] = 1 if ft.weekday() >= 5 else 0
+        feat['is_may'] = 1 if ft.month == 5 else 0
+        feat['is_clean_month'] = 1 if ft.month == 9 else 0
+        
+        X = pd.DataFrame([feat])[features].fillna(0)
+        out = model.predict(X)[0]
+        preds.append({'time': ft, 'aqi': out[0], 'pm2_5': out[1], 'pm10': out[2],
+                      'so2': out[3], 'co': out[4], 'no2': out[5]})
     
-    X_pred = pd.DataFrame([features])[features_day2].fillna(0)
-    aqi = models['day2'].predict(X_pred)[0]
-    aqi_class = 1 if aqi <= 20 else 2 if aqi <= 40 else 3 if aqi <= 60 else 4 if aqi <= 80 else 5
-    
-    predictions.append({
-        'event_timestamp': future_time.isoformat(), 'hour': future_time.hour,
-        'day': future_time.strftime('%A'), 'date': future_time.strftime('%Y-%m-%d'),
-        'european_aqi': round(float(aqi), 1), 'aqi_class': aqi_class,
-        'is_poor': 1 if aqi_class >= 3 else 0
-    })
+    return preds
 
-# Day 3: use 2-day old actuals
-for hour in range(48, 72):
-    future_time = latest['event_timestamp'] + timedelta(hours=hour + 1)
-    past_48h = df[df['event_timestamp'] <= future_time - timedelta(hours=48)].iloc[-1]
-    past_3d = df[df['event_timestamp'] <= future_time - timedelta(hours=72)].iloc[-1]
-    past_7d = df[df['event_timestamp'] <= future_time - timedelta(hours=168)].iloc[-1]
-    
-    features = {
-        'pm25_lag_48h': past_48h['pm2_5'], 'pm10_lag_48h': past_48h['pm10'],
-        'pm25_3d_ago': past_3d['pm2_5'], 'pm10_3d_ago': past_3d['pm10'],
-        'pm25_7d_ago': past_7d['pm2_5'], 'pm10_7d_ago': past_7d['pm10'],
-        'temp_3d_ago': past_3d['temperature'], 'wind_3d_ago': past_3d['wind_speed'],
-        'temp_7d_ago': past_7d['temperature'], 'wind_7d_ago': past_7d['wind_speed'],
-        'hour_of_day': future_time.hour, 'month': future_time.month,
-        'is_weekend': 1 if future_time.weekday() >= 5 else 0,
-        'is_may': 1 if future_time.month == 5 else 0,
-        'is_clean_month': 1 if future_time.month == 9 else 0
-    }
-    
-    X_pred = pd.DataFrame([features])[features_day3].fillna(0)
-    aqi = models['day3'].predict(X_pred)[0]
-    aqi_class = 1 if aqi <= 20 else 2 if aqi <= 40 else 3 if aqi <= 60 else 4 if aqi <= 80 else 5
-    
-    predictions.append({
-        'event_timestamp': future_time.isoformat(), 'hour': future_time.hour,
-        'day': future_time.strftime('%A'), 'date': future_time.strftime('%Y-%m-%d'),
-        'european_aqi': round(float(aqi), 1), 'aqi_class': aqi_class,
-        'is_poor': 1 if aqi_class >= 3 else 0
-    })
+# Build base features from latest actuals
+base_features = get_features_for_timestamp(df, latest['event_timestamp'])
 
-# Daily summary + save (same as before)
-daily_summary = {}
-for day in range(3):
-    day_date = (latest['event_timestamp'] + timedelta(days=day + 1)).strftime('%Y-%m-%d')
-    day_preds = [p for p in predictions if p['date'] == day_date]
-    if day_preds:
-        poor_hours = sum(p['is_poor'] for p in day_preds)
-        total_hours = len(day_preds)
-        daily_summary[day_date] = {
-            'date': day_date, 'day_name': day_preds[0]['day'],
-            'poor_hours': f"{poor_hours}/{total_hours}",
-            'poor_percentage': round((poor_hours / total_hours) * 100, 2),
-            'avg_aqi': round(np.mean([p['european_aqi'] for p in day_preds]), 1),
-            'max_aqi_class': max(p['aqi_class'] for p in day_preds),
-            'severity': 'Hazardous' if max(p['aqi_class'] for p in day_preds) >= 5 else
-                       'Very Poor' if max(p['aqi_class'] for p in day_preds) >= 4 else
-                       'Poor' if max(p['aqi_class'] for p in day_preds) >= 3 else
-                       'Fair' if max(p['aqi_class'] for p in day_preds) >= 2 else 'Good',
-            'hourly': day_preds
-        }
+# Day 1: Use today's actuals
+day1_preds = predict_24h(df, latest['event_timestamp'], base_features)
 
+# Day 2: Use Day 1 predictions
+day2_features = base_features.copy()
+day2_features['pm2_5'] = day1_preds[-1]['pm2_5']
+day2_features['pm10'] = day1_preds[-1]['pm10']
+day2_features['so2'] = day1_preds[-1]['so2']
+day2_features['co'] = day1_preds[-1]['co']
+day2_features['no2'] = day1_preds[-1]['no2']
+day2_preds = predict_24h(df, day1_preds[-1]['time'], day2_features)
+
+# Day 3: Use Day 2 predictions
+day3_features = day2_features.copy()
+day3_features['pm2_5'] = day2_preds[-1]['pm2_5']
+day3_features['pm10'] = day2_preds[-1]['pm10']
+day3_features['so2'] = day2_preds[-1]['so2']
+day3_features['co'] = day2_preds[-1]['co']
+day3_features['no2'] = day2_preds[-1]['no2']
+day3_preds = predict_24h(df, day2_preds[-1]['time'], day3_features)
+
+# Combine all predictions
+all_preds = day1_preds + day2_preds + day3_preds
+
+# Print summary
 print("\n" + "="*55)
-print("📅 3-DAY KARACHI AQI FORECAST (Horizon Models)")
+print("📅 3-DAY KARACHI AQI FORECAST (Recursive)")
 print("="*55)
-for date, summary in daily_summary.items():
-    print(f"\n{summary['day_name']}, {date}")
-    print(f"  Alert:      {summary['severity']}")
-    print(f"  Poor Hours: {summary['poor_hours']} ({summary['poor_percentage']}%)")
-    print(f"  Avg AQI:    {summary['avg_aqi']}")
-    print(f"  Hourly:")
-    for p in summary['hourly'][::3]:
-        status = "🔴" if p['is_poor'] else "🟢"
-        print(f"    {p['hour']:02d}:00 {status} AQI={p['european_aqi']:.1f} (Class {p['aqi_class']})")
+for day_offset, day_preds in enumerate([day1_preds, day2_preds, day3_preds]):
+    day_name = (latest['event_timestamp'] + timedelta(days=day_offset+1)).strftime('%A')
+    day_date = (latest['event_timestamp'] + timedelta(days=day_offset+1)).strftime('%Y-%m-%d')
+    aqi_vals = [p['aqi'] for p in day_preds]
+    print(f"\n{day_name}, {day_date}")
+    print(f"  AQI Range: {min(aqi_vals):.1f} - {max(aqi_vals):.1f}")
+    print(f"  Avg AQI:   {np.mean(aqi_vals):.1f}")
+    for p in day_preds[::3]:
+        aqi_class = 1 if p['aqi'] <= 20 else 2 if p['aqi'] <= 40 else 3 if p['aqi'] <= 60 else 4 if p['aqi'] <= 80 else 5
+        status = "🔴" if aqi_class >= 3 else "🟢"
+        print(f"    {p['time'].strftime('%H:%M')} {status} AQI={p['aqi']:.1f} (Class {aqi_class})")
 
+# Save
 forecast_output = {
     'generated_at': datetime.now().isoformat(),
-    'daily': {k: {kk: vv for kk, vv in v.items() if kk != 'hourly'} for k, v in daily_summary.items()},
-    'hourly': predictions
+    'daily': {},
+    'hourly': [{'time': p['time'].isoformat(), 'aqi': round(p['aqi'], 1)} for p in all_preds]
 }
 with open('meteo/aqi_forecast.json', 'w') as f:
     json.dump(forecast_output, f, indent=2)
