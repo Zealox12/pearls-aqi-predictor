@@ -224,16 +224,24 @@ def bar_html(aqi_class, width_pct: int, color: str) -> str:
 # ── Data loading ─────────────────────────────────────────────────────────────
 FORECAST_FILE = Path("meteo/aqi_forecast.json")
 
-@st.cache_data(ttl=60)
-def load_forecast(mtime: float) -> dict:  # mtime arg busts cache on file change
-    """Load and parse aqi_forecast.json."""
+import requests
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def load_forecast():
+    """Load forecast from GitHub raw URL (works on Streamlit Cloud)"""
+    url = "https://raw.githubusercontent.com/Zealox12/pearls-aqi-predictor/main/meteo/aqi_forecast.json"
     try:
-        with open(FORECAST_FILE, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.warning(f"Could not fetch forecast (HTTP {response.status_code})")
+            return {}
+    except requests.exceptions.RequestException as e:
+        st.warning(f"Could not connect to GitHub: {e}")
         return {}
     except json.JSONDecodeError as e:
-        st.warning(f"⚠️ Could not parse aqi_forecast.json: {e}")
+        st.warning(f"Invalid JSON in forecast file: {e}")
         return {}
 
 def get_file_mtime() -> float:
@@ -296,8 +304,7 @@ with st.sidebar:
     )
 
 # ── Load data ────────────────────────────────────────────────────────────────
-mtime = get_file_mtime()
-data = load_forecast(mtime)
+data = load_forecast()
 
 # ── Header ───────────────────────────────────────────────────────────────────
 generated_at = data.get("generated_at", "—")
@@ -413,7 +420,21 @@ if hourly:
             )
 
 # ── Hourly breakdown ──────────────────────────────────────────────────────────
-hourly = data.get("hourly", [])
+
+def check_alerts(hourly_data):
+    alerts = []
+    for h in hourly_data:
+        if h['aqi'] > 80:
+            alerts.append({'time': h['time'], 'aqi': h['aqi'], 'level': '🔴 Hazardous'})
+        elif h['aqi'] > 60:
+            alerts.append({'time': h['time'], 'aqi': h['aqi'], 'level': '🟠 Poor'})
+    return alerts
+
+alerts = check_alerts(hourly)
+if alerts:
+    st.error(f"⚠️ {len(alerts)} critical AQI hours detected in next 72 hours!")
+    for alert in alerts[:5]:
+        st.warning(f"  {alert['time'][:16]} - AQI: {alert['aqi']:.1f} ({alert['level']})")
     
 if hourly:
     st.markdown("#### 🕐 Hourly Breakdown")

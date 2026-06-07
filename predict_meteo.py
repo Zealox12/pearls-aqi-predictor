@@ -1,3 +1,4 @@
+from asyncio import subprocess
 import sys, types
 import json
 m = types.ModuleType('pyjks')
@@ -18,8 +19,7 @@ project = hopsworks.login(
     host="eu-west.cloud.hopsworks.ai"
 )
 mr = project.get_model_registry()
-model_obj = mr.get_model("karachi_aqi_recursive", version=20260528)
-model_obj.download()
+model_obj = mr.get_model("karachi_aqi_recursive")
 model = joblib.load('meteo/recursive_model.pkl')
 features = joblib.load('meteo/features.pkl')
 print("Model loaded")
@@ -94,6 +94,7 @@ day3_preds = predict_24h(df, day2_preds[-1]['time'], day3_features)
 # Combine all predictions
 all_preds = day1_preds + day2_preds + day3_preds
 
+
 # Print summary
 print("3-DAY KARACHI AQI FORECAST (Recursive)")
 for day_offset, day_preds in enumerate([day1_preds, day2_preds, day3_preds]):
@@ -113,6 +114,42 @@ forecast_output = {
     'daily': {},
     'hourly': [{'time': p['time'].isoformat(), 'aqi': round(p['aqi'], 1)} for p in all_preds]
 }
+
+from collections import defaultdict
+
+daily_grouped = defaultdict(list)
+for p in all_preds:
+    date_key = p['time'].strftime('%Y-%m-%d')
+    daily_grouped[date_key].append(p['aqi'])
+
+daily_summary = {}
+for date_key, aqi_vals in daily_grouped.items():
+    max_aqi = max(aqi_vals)
+    daily_summary[date_key] = {
+        'avg_aqi': round(np.mean(aqi_vals), 1),
+        'max_aqi': round(max_aqi, 1),
+        'min_aqi': round(min(aqi_vals), 1),
+        'aqi_class': 1 if max_aqi <= 20 else 2 if max_aqi <= 40 else 3 if max_aqi <= 60 else 4 if max_aqi <= 80 else 5
+    }
+
+forecast_output['daily'] = daily_summary
 with open('meteo/aqi_forecast.json', 'w') as f:
     json.dump(forecast_output, f, indent=2)
 print(f"\nForecast saved to meteo/aqi_forecast.json")
+
+# Only push to GitHub if running in GitHub Actions
+if os.environ.get('GITHUB_ACTIONS'):
+    print("Pushing forecast to GitHub...")
+    
+    # Configure git
+    subprocess.run(['git', 'config', '--global', 'user.name', 'github-actions'])
+    subprocess.run(['git', 'config', '--global', 'user.email', 'actions@github.com'])
+    
+    # Add, commit, and push
+    subprocess.run(['git', 'add', 'meteo/aqi_forecast.json'])
+    subprocess.run(['git', 'commit', '-m', 'Update AQI forecast [skip ci]', '||', 'echo "No changes to commit"'])
+    subprocess.run(['git', 'push'])
+    
+    print("Forecast pushed to GitHub!")
+else:
+    print("Not in GitHub Actions, skipping git push")
