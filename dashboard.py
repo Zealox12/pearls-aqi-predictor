@@ -307,14 +307,6 @@ st.markdown(
         <div class="cond-title">📍 Current Conditions — Karachi</div>
         <div class="cond-grid">
             <div class="cond-item">
-                <div class="cond-num">{cc['temperature']}°</div>
-                <div class="cond-label">Temperature (°C)</div>
-            </div>
-            <div class="cond-item">
-                <div class="cond-num">{cc['humidity']}%</div>
-                <div class="cond-label">Humidity</div>
-            </div>
-            <div class="cond-item">
                 <div class="cond-num">{cc['pm25']}</div>
                 <div class="cond-label">PM2.5 µg/m³</div>
             </div>

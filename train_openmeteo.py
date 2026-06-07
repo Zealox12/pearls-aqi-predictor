@@ -119,7 +119,7 @@ joblib.dump(target_cols, 'meteo/target_cols.pkl')
 print("All models saved to meteo/")
 
 mr = project.get_model_registry()
-version = int(datetime.now().strftime('%Y%m%d'))
+version = 1
 
 for name, m in models.items():
     try:
