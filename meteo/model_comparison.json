@@ -1,56 +1,39 @@
 {
-  "timestamp": "2026-05-23T05:56:36.286237",
+  "timestamp": "2026-06-07T22:51:54.870351",
   "best_model": "Ridge",
-  "best_mae": 11.35571184218289,
-  "persistence_mae": 16.916893171896877,
+  "best_mae": 11.411860359154717,
+  "persistence_mae": 17.008464230487508,
   "improvement_pct": 32.9,
   "features": [
+    "pm2_5",
+    "pm10",
+    "so2",
+    "co",
+    "no2",
+    "temperature",
+    "humidity",
+    "wind_speed",
+    "pressure",
     "pm25_3d_ago",
     "pm10_3d_ago",
-    "temp_3d_ago",
-    "wind_3d_ago",
     "pm25_7d_ago",
     "pm10_7d_ago",
+    "temp_3d_ago",
+    "wind_3d_ago",
     "temp_7d_ago",
     "wind_7d_ago",
-    "month",
     "hour_of_day",
-    "is_clean_month",
+    "month",
     "is_weekend",
-    "is_may"
+    "is_may",
+    "is_clean_month"
   ],
-  "train_size": 17379,
-  "test_size": 12141,
   "results": {
-    "Ridge": {
-      "MAE": 11.3557,
-      "RMSE": 15.9887,
-      "R2": -0.0321
-    },
-    "Lasso": {
-      "MAE": 11.382,
-      "RMSE": 16.0211,
-      "R2": -0.0363
-    },
-    "RandomForest": {
-      "MAE": 11.4966,
-      "RMSE": 16.0814,
-      "R2": -0.0441
-    },
-    "GradientBoosting": {
-      "MAE": 11.4896,
-      "RMSE": 16.0737,
-      "R2": -0.0431
-    },
-    "XGBoost": {
-      "MAE": 11.578,
-      "RMSE": 16.1284,
-      "R2": -0.0502
-    },
-    "LightGBM": {
-      "MAE": 11.4842,
-      "RMSE": 16.0586,
-      "R2": -0.0411
-    }
+    "Ridge": 11.4119,
+    "Lasso": 11.4546,
+    "RandomForest": 11.6145,
+    "GradientBoosting": 11.5904,
+    "XGBoost": 11.7298,
+    "LightGBM": 11.5705
   }
 }

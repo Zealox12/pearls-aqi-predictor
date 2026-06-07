@@ -1,0 +1,32 @@
+# .github/workflows/predict_hourly.yml
+name: Generate AQI Forecast (Hourly)
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Every hour
+  workflow_dispatch:
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          pip install pandas scikit-learn joblib python-dotenv
+          pip install pyarrow==12.0.1 confluent-kafka
+          pip install "hopsworks[python]==4.7.*"
+      - name: Generate forecast
+        env:
+          API_KEY_HS: ${{ secrets.API_KEY_HS }}
+        run: python predict_meteo.py
+      - name: Commit updated forecast
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'actions@github.com'
+          git add meteo/aqi_forecast.json
+          git commit -m "Update AQI forecast [skip ci]" || exit 0
+          git push

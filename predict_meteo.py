@@ -1,4 +1,3 @@
-# predict_meteo.py — RECURSIVE VERSION
 import sys, types
 import json
 m = types.ModuleType('pyjks')
@@ -13,7 +12,6 @@ import numpy as np
 
 load_dotenv()
 
-print("📦 Loading model...")
 project = hopsworks.login(
     api_key_value=os.getenv('API_KEY_HS'),
     project="Pearls_AQI_Predictor12",
@@ -24,7 +22,7 @@ model_obj = mr.get_model("karachi_aqi_recursive", version=20260528)
 model_obj.download()
 model = joblib.load('meteo/recursive_model.pkl')
 features = joblib.load('meteo/features.pkl')
-print("✅ Model loaded")
+print("Model loaded")
 
 fs = project.get_feature_store()
 fg = fs.get_feature_group("karachi_aqi_openmeteo", version=1)
@@ -33,7 +31,6 @@ df['event_timestamp'] = pd.to_datetime(df['event_timestamp'])
 latest = df.sort_values('event_timestamp', ascending=False).iloc[0]
 
 def get_features_for_timestamp(df, target_time):
-    """Build feature dict for a specific timestamp using only past data."""
     past_3d = df[df['event_timestamp'] <= target_time - timedelta(hours=72)].iloc[-1]
     past_7d = df[df['event_timestamp'] <= target_time - timedelta(hours=168)].iloc[-1]
     
@@ -53,7 +50,6 @@ def get_features_for_timestamp(df, target_time):
     }
 
 def predict_24h(df, start_time, current_features):
-    """Predict 24 hours of AQI starting from start_time."""
     preds = []
     feat = current_features.copy()
     
@@ -72,7 +68,6 @@ def predict_24h(df, start_time, current_features):
     
     return preds
 
-# Build base features from latest actuals
 base_features = get_features_for_timestamp(df, latest['event_timestamp'])
 
 # Day 1: Use today's actuals
@@ -100,9 +95,7 @@ day3_preds = predict_24h(df, day2_preds[-1]['time'], day3_features)
 all_preds = day1_preds + day2_preds + day3_preds
 
 # Print summary
-print("\n" + "="*55)
-print("📅 3-DAY KARACHI AQI FORECAST (Recursive)")
-print("="*55)
+print("3-DAY KARACHI AQI FORECAST (Recursive)")
 for day_offset, day_preds in enumerate([day1_preds, day2_preds, day3_preds]):
     day_name = (latest['event_timestamp'] + timedelta(days=day_offset+1)).strftime('%A')
     day_date = (latest['event_timestamp'] + timedelta(days=day_offset+1)).strftime('%Y-%m-%d')
@@ -112,10 +105,9 @@ for day_offset, day_preds in enumerate([day1_preds, day2_preds, day3_preds]):
     print(f"  Avg AQI:   {np.mean(aqi_vals):.1f}")
     for p in day_preds[::3]:
         aqi_class = 1 if p['aqi'] <= 20 else 2 if p['aqi'] <= 40 else 3 if p['aqi'] <= 60 else 4 if p['aqi'] <= 80 else 5
-        status = "🔴" if aqi_class >= 3 else "🟢"
+        status = "Red" if aqi_class >= 3 else "Green"
         print(f"    {p['time'].strftime('%H:%M')} {status} AQI={p['aqi']:.1f} (Class {aqi_class})")
 
-# Save
 forecast_output = {
     'generated_at': datetime.now().isoformat(),
     'daily': {},
@@ -123,4 +115,4 @@ forecast_output = {
 }
 with open('meteo/aqi_forecast.json', 'w') as f:
     json.dump(forecast_output, f, indent=2)
-print(f"\n✅ Forecast saved to meteo/aqi_forecast.json")
+print(f"\nForecast saved to meteo/aqi_forecast.json")

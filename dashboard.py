@@ -222,7 +222,7 @@ def bar_html(aqi_class, width_pct: int, color: str) -> str:
     )
 
 # ── Data loading ─────────────────────────────────────────────────────────────
-FORECAST_FILE = Path("aqi_forecast.json")
+FORECAST_FILE = Path("meteo/aqi_forecast.json")
 
 @st.cache_data(ttl=60)
 def load_forecast(mtime: float) -> dict:  # mtime arg busts cache on file change
@@ -262,7 +262,7 @@ def get_current_conditions():
             host="eu-west.cloud.hopsworks.ai"
         )
         fs = project.get_feature_store()
-        fg = fs.get_feature_group("weather_pollution_features", version=1)
+        fg = fs.get_feature_group("karachi_aqi_openmeteo", version=1)
         df = fg.read()
         latest = df.sort_values('event_timestamp', ascending=False).iloc[0]
         return {
@@ -270,7 +270,10 @@ def get_current_conditions():
             "humidity": latest.get('humidity', 'N/A'),
             "pm25": latest.get('pm2_5', 'N/A'),
             "pm10": latest.get('pm10', 'N/A'),
-            "aqi_class": int(latest.get('aqi', 3))
+            "aqi_class": 1 if latest.get('european_aqi', 60) <= 20 else 
+             2 if latest.get('european_aqi', 60) <= 40 else
+             3 if latest.get('european_aqi', 60) <= 60 else
+             4 if latest.get('european_aqi', 60) <= 80 else 5
         }
     except:
         return CURRENT_CONDITIONS  # Fallback to hardcoded
@@ -357,112 +360,80 @@ st.markdown(
 )
 
 # ── 3-Day summary cards ───────────────────────────────────────────────────────
+# Replace the daily cards section with:
 daily = data.get("daily", {})
+hourly = data.get("hourly", [])
 
-if not daily:
-    st.warning("⚠️ No daily forecast data found in aqi_forecast.json.")
-else:
+if hourly:
+    # Group hourly into days
+    from collections import defaultdict
+    days = defaultdict(list)
+    for h in hourly:
+        day_key = h['time'][:10]  # Extract date from ISO timestamp
+        days[day_key].append(h)
+    
     st.markdown("#### 📅 3-Day Forecast")
-    cols = st.columns(len(daily)) if len(daily) <= 3 else st.columns(3)
-
-    for idx, (date_key, day) in enumerate(list(daily.items())[:3]):
-        sev = day.get("severity", "Poor")
-        sev_style = get_severity_style(sev)
-        avg_cls = day.get("avg_aqi_class", "—")
-        max_cls = day.get("max_aqi_class", "—")
-        poor_h  = day.get("poor_hours", "—")
-        ow_val  = day.get("openw_poor_validation", "—")
-        poor_pct = day.get("poor_percentage", 0)
-
+    cols = st.columns(min(len(days), 3))
+    
+    for idx, (date_key, hours) in enumerate(list(days.items())[:3]):
+        aqi_vals = [h['aqi'] for h in hours]
+        avg_aqi = sum(aqi_vals) / len(aqi_vals)
+        max_aqi = max(aqi_vals)
+        aqi_class = 1 if max_aqi <= 20 else 2 if max_aqi <= 40 else 3 if max_aqi <= 60 else 4 if max_aqi <= 80 else 5
+        sev_style = AQI_LEVELS[aqi_class]
+        severity = sev_style['label']
+        poor_count = sum(1 for a in aqi_vals if a > 60)
+        
         with cols[idx]:
             st.markdown(
                 f"""
                 <div class="day-card">
-                    <div class="day-name">{day.get('day_name', date_key)}</div>
-                    <div class="day-date">{date_key}</div>
+                    <div class="day-name">{date_key}</div>
                     <div>
                         <span class="severity-badge"
                             style="background:{sev_style['bg']};color:{sev_style['text']};">
-                            {sev_style['emoji']} {sev}
+                            {sev_style['emoji']} {severity}
                         </span>
                     </div>
                     <div class="stat-row">
+                        <span>Avg AQI</span>
+                        <span class="stat-value">{avg_aqi:.1f}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Max AQI</span>
+                        <span class="stat-value">{max_aqi:.1f}</span>
+                    </div>
+                    <div class="stat-row">
                         <span>Poor Hours</span>
-                        <span class="stat-value">{poor_h}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>Avg AQI Class</span>
-                        <span class="stat-value">{avg_cls}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>Max AQI Class</span>
-                        <span class="stat-value">{max_cls}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>OW Validation</span>
-                        <span class="stat-value">{ow_val}</span>
+                        <span class="stat-value">{poor_count}/{len(hours)}</span>
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-            st.progress(int(min(poor_pct, 100)), text=f"{poor_pct:.0f}% poor air hours")
 
 # ── Hourly breakdown ──────────────────────────────────────────────────────────
 hourly = data.get("hourly", [])
-
+    
 if hourly:
     st.markdown("#### 🕐 Hourly Breakdown")
-
-    # Group by date
     from collections import defaultdict
-    hourly_by_date: dict[str, list] = defaultdict(list)
+    hourly_by_date = defaultdict(list)
     for h in hourly:
-        hourly_by_date[h.get("date", "unknown")].append(h)
-
+        day_key = h['time'][:10]
+        hourly_by_date[day_key].append(h)
+    
     for date_key, hours in list(hourly_by_date.items())[:3]:
-        day_label = daily.get(date_key, {}).get("day_name", date_key) if daily else date_key
-        poor_count = sum(1 for h in hours if h.get("is_poor", 0))
-        label = f"{day_label} — {date_key}  ·  {poor_count}/{len(hours)} poor hours"
-
+        poor_count = sum(1 for h in hours if h.get('aqi', 60) > 60)
+        label = f"{date_key} · {poor_count}/{len(hours)} poor hours"
+        
         with st.expander(label, expanded=(date_key == list(hourly_by_date.keys())[0])):
-            # Column headers
-            st.markdown(
-                '<div style="display:flex;gap:10px;font-size:0.68rem;color:rgba(255,255,255,0.3);'
-                'text-transform:uppercase;letter-spacing:0.08em;padding:4px 0 6px;">'
-                '<span style="width:52px">Hour</span>'
-                '<span style="flex:1">Condition</span>'
-                '<span style="width:28px;text-align:center">AQI</span>'
-                '<span style="width:60px;text-align:right">OW·AQI</span>'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-
-            rows_html = ""
-            for h in sorted(hours, key=lambda x: x.get("hour", 0)):
-                hr        = h.get("hour", 0)
-                aqi_cls   = h.get("aqi_class", 3)
-                ow_aqi    = h.get("openw_aqi", "—")
-                style     = aqi_class_to_style(aqi_cls)
-                bar_pct   = int((aqi_cls / 5) * 100)
-                hr_label  = f"{hr:02d}:00"
-                dot       = style["emoji"]
-                color     = style["color"]
-
-                rows_html += (
-                    f'<div class="hour-row">'
-                    f'  <span class="hour-label">{hr_label}</span>'
-                    f'  <div class="hour-bar-wrap">{dot}&nbsp;'
-                    f'    <span style="font-size:0.72rem;color:{color}">{style["label"]}</span>'
-                    f'    {bar_html(aqi_cls, bar_pct, color)}'
-                    f'  </div>'
-                    f'  <span class="aqi-val" style="color:{color}">{aqi_cls}</span>'
-                    f'  <span class="ow-val">{ow_aqi}</span>'
-                    f'</div>'
-                )
-
-            st.markdown(rows_html, unsafe_allow_html=True)
-
+            for h in sorted(hours, key=lambda x: x.get('time', ''))[:8]:  # Every 3 hours
+                hr = h['time'][11:16]  # Extract HH:MM from ISO
+                aqi_val = h.get('aqi', 60)
+                aqi_class = 1 if aqi_val <= 20 else 2 if aqi_val <= 40 else 3 if aqi_val <= 60 else 4 if aqi_val <= 80 else 5
+                style = AQI_LEVELS[aqi_class]
+                st.markdown(f"{style['emoji']} **{hr}** — AQI: {aqi_val:.1f} ({style['label']})")
 elif not data:
     st.info("ℹ️ Place your `aqi_forecast.json` file in the same directory as `dashboard.py`, then refresh.")
 
