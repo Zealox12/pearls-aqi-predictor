@@ -19,7 +19,12 @@ project = hopsworks.login(
     host="eu-west.cloud.hopsworks.ai"
 )
 mr = project.get_model_registry()
-model_dir = mr.get_model("karachi_aqi_recursive").download()
+available = mr.get_models("karachi_aqi_recursive")
+if not available:
+    raise RuntimeError("No karachi_aqi_recursive model found in registry. Run train_openmeteo.py first.")
+latest_model = sorted(available, key=lambda x: x.version)[-1]
+print(f"Loading model version {latest_model.version}")
+model_dir = latest_model.download()
 model = joblib.load(os.path.join(model_dir, 'recursive_model.pkl'))
 features = joblib.load('meteo/features.pkl')
 print("Model loaded")

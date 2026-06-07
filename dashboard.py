@@ -246,9 +246,13 @@ def get_current_conditions(data):
     aqi_val = latest.get("aqi", 60)
     aqi_class = (1 if aqi_val <= 20 else 2 if aqi_val <= 40 else
                  3 if aqi_val <= 60 else 4 if aqi_val <= 80 else 5)
+    
+    pm25 = latest.get("pm25")
+    pm10 = latest.get("pm10")
+    
     return {
-        "pm25": latest.get("pm25", "N/A"),
-        "pm10": latest.get("pm10", "N/A"),
+        "pm25":      f"{pm25:.1f}" if pm25 is not None else "N/A",
+        "pm10":      f"{pm10:.1f}" if pm10 is not None else "N/A",
         "aqi_class": aqi_class
     }
 
