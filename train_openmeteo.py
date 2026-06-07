@@ -121,7 +121,7 @@ print("All models saved to meteo/")
 mr = project.get_model_registry()
 version = int(datetime.now().strftime('%Y%m%d'))
 
-for name, model_obj in models.items():
+for name, m in models.items():
     try:
         old = mr.get_model(f"karachi_aqi_{name}", version=version)
         old.delete()

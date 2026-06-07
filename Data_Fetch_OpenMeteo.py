@@ -41,10 +41,7 @@ def fetch_openmeteo_current(lat, lon):
     if not w_hourly.get('time'):
         return None
     
-    karachi_tz = timezone(timedelta(hours=5))
-    current_hour = datetime.now(karachi_tz).hour
-    
-    now_str = datetime.now(karachi_tz).strftime('%Y-%m-%dT%H:00')
+    now_str = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:00')
     times = aq_hourly['time']
     idx = next((i for i, t in enumerate(times) if t.startswith(now_str)), 0)
 

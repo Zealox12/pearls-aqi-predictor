@@ -27,7 +27,7 @@ print("Model loaded")
 fs = project.get_feature_store()
 fg = fs.get_feature_group("karachi_aqi_openmeteo", version=1)
 df = fg.read(online=True)
-df['event_timestamp'] = pd.to_datetime(df['event_timestamp'])
+df['event_timestamp'] = pd.to_datetime(df['event_timestamp'], utc=True)
 df = df.sort_values('event_timestamp').reset_index(drop=True)
 latest = df.sort_values('event_timestamp', ascending=False).iloc[0]
 
