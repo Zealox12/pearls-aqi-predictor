@@ -238,32 +238,22 @@ CURRENT_CONDITIONS = {
 }
 
 # Replace the hardcoded CURRENT_CONDITIONS with:
-def get_current_conditions():
-    """Fetch latest conditions from Hopsworks Feature Store."""
-    try:
-        import hopsworks
-        project = hopsworks.login(
-            api_key_value=os.getenv('API_KEY_HS'),
-            project="Pearls_AQI_Predictor12",
-            host="eu-west.cloud.hopsworks.ai"
-        )
-        fs = project.get_feature_store()
-        fg = fs.get_feature_group("karachi_aqi_openmeteo", version=1)
-        df = fg.read()
-        latest = df.sort_values('event_timestamp', ascending=False).iloc[0]
-        return {
-            "temperature": latest.get('temperature', 'N/A'),
-            "humidity": latest.get('humidity', 'N/A'),
-            "pm25": latest.get('pm2_5', 'N/A'),
-            "pm10": latest.get('pm10', 'N/A'),
-            "aqi_class": 1 if latest.get('european_aqi', 60) <= 20 else 
-             2 if latest.get('european_aqi', 60) <= 40 else
-             3 if latest.get('european_aqi', 60) <= 60 else
-             4 if latest.get('european_aqi', 60) <= 80 else 5
-        }
-    except Exception as e:
-        st.warning(f"⚠️ Live conditions unavailable, showing last known values. ({e})")
-        return CURRENT_CONDITIONS
+def get_current_conditions(data):
+    hourly = data.get("hourly", [])
+    if not hourly:
+        return {"temperature": "N/A", "humidity": "N/A",
+                "pm25": "N/A", "pm10": "N/A", "aqi_class": 3}
+    latest = hourly[0]
+    aqi_val = latest.get("aqi", 60)
+    aqi_class = (1 if aqi_val <= 20 else 2 if aqi_val <= 40 else
+                 3 if aqi_val <= 60 else 4 if aqi_val <= 80 else 5)
+    return {
+        "temperature": "N/A",
+        "humidity":    "N/A",
+        "pm25":        latest.get("pm25", "N/A"),
+        "pm10":        latest.get("pm10", "N/A"),
+        "aqi_class":   aqi_class,
+    }
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -311,7 +301,7 @@ with col_btn:
         st.rerun()
 
 # ── Current conditions ───────────────────────────────────────────────────────
-cc = get_current_conditions()
+cc = get_current_conditions(data)
 aqi_style = aqi_class_to_style(cc["aqi_class"])
 
 st.markdown(

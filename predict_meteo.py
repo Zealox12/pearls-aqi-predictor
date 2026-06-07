@@ -115,7 +115,12 @@ for day_offset, day_preds in enumerate([day1_preds, day2_preds, day3_preds]):
 forecast_output = {
     'generated_at': datetime.now().isoformat(),
     'daily': {},
-    'hourly': [{'time': p['time'].isoformat(), 'aqi': round(p['aqi'], 1)} for p in all_preds]
+    'hourly': [{
+    'time': p['time'].isoformat(),
+    'aqi':  round(p['aqi'],   1),
+    'pm25': round(p['pm2_5'], 1),
+    'pm10': round(p['pm10'],  1),
+    } for p in all_preds]
 }
 
 from collections import defaultdict

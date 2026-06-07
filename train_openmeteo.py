@@ -30,7 +30,7 @@ df = fg.read(online=True)
 print(f"   {len(df)} rows loaded")
 
 df['event_timestamp'] = pd.to_datetime(df['event_timestamp'])
-df = df.sort_values('event_timestamp').reset_index(drop=True) 
+df = df.sort_values('event_timestamp').reset_index(drop=True)
 df['year'] = df['event_timestamp'].dt.year
 df['month'] = df['event_timestamp'].dt.month
 df['hour_of_day'] = df['event_timestamp'].dt.hour
