@@ -30,6 +30,7 @@ df = fg.read(online=True)
 print(f"   {len(df)} rows loaded")
 
 df['event_timestamp'] = pd.to_datetime(df['event_timestamp'])
+df = df.sort_values('event_timestamp').reset_index(drop=True) 
 df['year'] = df['event_timestamp'].dt.year
 df['month'] = df['event_timestamp'].dt.month
 df['hour_of_day'] = df['event_timestamp'].dt.hour
@@ -109,8 +110,8 @@ print(f"\nBest: {best_name} (MAE: {best_mae:.4f}, {((persist-best_mae)/persist*1
 import os as _os
 _os.makedirs('meteo', exist_ok=True)
 
-for name, model_obj in models.items():
-    joblib.dump(model_obj, f'meteo/{name}.pkl')
+for name, m in models.items():
+    joblib.dump(m, f'meteo/{name}.pkl')
 
 joblib.dump(best_model, 'meteo/recursive_model.pkl')
 joblib.dump(features, 'meteo/features.pkl')

@@ -1,4 +1,4 @@
-from asyncio import subprocess
+import subprocess
 import sys, types
 import json
 m = types.ModuleType('pyjks')
@@ -19,8 +19,8 @@ project = hopsworks.login(
     host="eu-west.cloud.hopsworks.ai"
 )
 mr = project.get_model_registry()
-model_obj = mr.get_model("karachi_aqi_recursive")
-model = joblib.load('meteo/recursive_model.pkl')
+model_dir = mr.get_model("karachi_aqi_recursive").download()
+model = joblib.load(os.path.join(model_dir, 'recursive_model.pkl'))
 features = joblib.load('meteo/features.pkl')
 print("Model loaded")
 
@@ -28,11 +28,14 @@ fs = project.get_feature_store()
 fg = fs.get_feature_group("karachi_aqi_openmeteo", version=1)
 df = fg.read(online=True)
 df['event_timestamp'] = pd.to_datetime(df['event_timestamp'])
+df = df.sort_values('event_timestamp').reset_index(drop=True)
 latest = df.sort_values('event_timestamp', ascending=False).iloc[0]
 
 def get_features_for_timestamp(df, target_time):
-    past_3d = df[df['event_timestamp'] <= target_time - timedelta(hours=72)].iloc[-1]
-    past_7d = df[df['event_timestamp'] <= target_time - timedelta(hours=168)].iloc[-1]
+    slice_3d = df[df['event_timestamp'] <= target_time - timedelta(hours=72)]
+    slice_7d = df[df['event_timestamp'] <= target_time - timedelta(hours=168)]
+    past_3d = slice_3d.iloc[-1] if len(slice_3d) > 0 else df.iloc[0]  # ← fallback
+    past_7d = slice_7d.iloc[-1] if len(slice_7d) > 0 else df.iloc[0]  # ← fallback
     
     return {
         'pm2_5': latest['pm2_5'], 'pm10': latest['pm10'],
@@ -147,7 +150,7 @@ if os.environ.get('GITHUB_ACTIONS'):
     
     # Add, commit, and push
     subprocess.run(['git', 'add', 'meteo/aqi_forecast.json'])
-    subprocess.run(['git', 'commit', '-m', 'Update AQI forecast [skip ci]', '||', 'echo "No changes to commit"'])
+    subprocess.run('git commit -m "Update AQI forecast [skip ci]" || true', shell=True)
     subprocess.run(['git', 'push'])
     
     print("Forecast pushed to GitHub!")

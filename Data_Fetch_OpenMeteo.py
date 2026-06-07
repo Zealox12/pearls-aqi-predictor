@@ -20,7 +20,7 @@ def fetch_openmeteo_current(lat, lon):
         'past_days': 0,
         'forecast_days': 1
     }
-    aq_resp = requests.get(aq_url, params=aq_params).json()
+    aq_resp = requests.get(aq_url, params=aq_params, timeout=10).json()
     aq_hourly = aq_resp.get('hourly', {})
     
     if not aq_hourly.get('time'):
@@ -35,7 +35,7 @@ def fetch_openmeteo_current(lat, lon):
         'forecast_days': 1
     }
    
-    w_resp = requests.get(w_url, params=w_params).json()
+    w_resp  = requests.get(w_url,  params=w_params,  timeout=10).json()
     w_hourly = w_resp.get('hourly', {})
 
     if not w_hourly.get('time'):
@@ -44,7 +44,9 @@ def fetch_openmeteo_current(lat, lon):
     karachi_tz = timezone(timedelta(hours=5))
     current_hour = datetime.now(karachi_tz).hour
     
-    idx = current_hour  # latest reading
+    now_str = datetime.now(karachi_tz).strftime('%Y-%m-%dT%H:00')
+    times = aq_hourly['time']
+    idx = next((i for i, t in enumerate(times) if t.startswith(now_str)), 0)
 
     return {
         'event_timestamp': pd.to_datetime(aq_hourly['time'][idx]),

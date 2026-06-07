@@ -8,6 +8,8 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
+import requests
+from collections import defaultdict
 
 import streamlit as st
 
@@ -194,16 +196,7 @@ AQI_LEVELS = {
     5: {"label": "Hazardous", "emoji": "🟣", "color": "#7c3aed", "bg": "rgba(124,58,237,0.15)", "text": "#a78bfa"},
 }
 
-SEVERITY_MAP = {
-    "Good":      AQI_LEVELS[1],
-    "Fair":      AQI_LEVELS[2],
-    "Poor":      AQI_LEVELS[3],
-    "Very Poor": AQI_LEVELS[4],
-    "Hazardous": AQI_LEVELS[5],
-}
 
-def get_severity_style(severity: str) -> dict:
-    return SEVERITY_MAP.get(severity, AQI_LEVELS[3])
 
 def aqi_class_to_style(aqi_class) -> dict:
     try:
@@ -213,18 +206,8 @@ def aqi_class_to_style(aqi_class) -> dict:
         cls = 3
     return AQI_LEVELS[cls]
 
-def bar_html(aqi_class, width_pct: int, color: str) -> str:
-    return (
-        f'<div style="height:10px;border-radius:5px;background:rgba(255,255,255,0.06);overflow:hidden;">'
-        f'<div style="width:{width_pct}%;height:100%;background:{color};'
-        f'border-radius:5px;transition:width 0.3s;"></div>'
-        f'</div>'
-    )
 
 # ── Data loading ─────────────────────────────────────────────────────────────
-FORECAST_FILE = Path("meteo/aqi_forecast.json")
-
-import requests
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_forecast():
@@ -244,11 +227,6 @@ def load_forecast():
         st.warning(f"Invalid JSON in forecast file: {e}")
         return {}
 
-def get_file_mtime() -> float:
-    try:
-        return FORECAST_FILE.stat().st_mtime
-    except FileNotFoundError:
-        return 0.0
 
 # Sample current conditions (replace with real sensor feed if available)
 CURRENT_CONDITIONS = {
@@ -283,8 +261,9 @@ def get_current_conditions():
              3 if latest.get('european_aqi', 60) <= 60 else
              4 if latest.get('european_aqi', 60) <= 80 else 5
         }
-    except:
-        return CURRENT_CONDITIONS  # Fallback to hardcoded
+    except Exception as e:
+        st.warning(f"⚠️ Live conditions unavailable, showing last known values. ({e})")
+        return CURRENT_CONDITIONS
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -373,7 +352,6 @@ hourly = data.get("hourly", [])
 
 if hourly:
     # Group hourly into days
-    from collections import defaultdict
     days = defaultdict(list)
     for h in hourly:
         day_key = h['time'][:10]  # Extract date from ISO timestamp
@@ -449,7 +427,7 @@ if hourly:
         label = f"{date_key} · {poor_count}/{len(hours)} poor hours"
         
         with st.expander(label, expanded=(date_key == list(hourly_by_date.keys())[0])):
-            for h in sorted(hours, key=lambda x: x.get('time', ''))[:8]:  # Every 3 hours
+            for h in sorted(hours, key=lambda x: x.get('time', '')):  # Every 3 hours
                 hr = h['time'][11:16]  # Extract HH:MM from ISO
                 aqi_val = h.get('aqi', 60)
                 aqi_class = 1 if aqi_val <= 20 else 2 if aqi_val <= 40 else 3 if aqi_val <= 60 else 4 if aqi_val <= 80 else 5
@@ -470,6 +448,7 @@ st.markdown(
 
 # ── Auto-refresh ──────────────────────────────────────────────────────────────
 if auto_refresh:
-    time.sleep(refresh_interval * 60)
-    st.cache_data.clear()
-    st.rerun()
+    st.markdown(
+        f'<meta http-equiv="refresh" content="{refresh_interval * 60}">',
+        unsafe_allow_html=True
+    )
